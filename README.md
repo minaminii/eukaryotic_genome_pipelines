@@ -29,8 +29,11 @@ The pipeline requires the following tools (included in the conda environment):
 - Annotation dependencies from [meiyang12/Genome-annotation-pipeline](https://github.com/meiyang12/Genome-annotation-pipeline)
 
 > [!IMPORTANT]
-> This pipeline is a wrapper that orchestrates the execution of multiple external tools. It does not modify, package, or alter the behavior of those tools.
-> If you encounter issues related to the functionality, dependencies, or performance of any external tool (e.g., Canu, Racon, Pilon), please refer to the documentation or issue tracker of the respective project. This repository does not provide support for tool-specific bugs or installation problems.
+> This pipeline is a wrapper that orchestrates the execution of multiple external tools. 
+>
+> **It does not modify, package, or alter the behavior of those tools.**
+>
+> If you encounter issues related to the functionality, dependencies, or performance of any external tool (e.g., Canu, Racon, Pilon), please refer to the documentation or issue tracker of the respective project.
 
 
 ---
@@ -84,7 +87,9 @@ output_directory/
 
 ## Contact
 
-For questions or suggestions, feel free to open an issue or submit a pull request.
+For questions or suggestions, feel free to open an issue or submit a pull request. 
+
+Please note that this repository does not provide support for tool-specific bugs or installation problems.
 
 ## Third-Party Tools and Licenses
 
