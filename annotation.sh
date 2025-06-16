@@ -100,11 +100,11 @@ hisat2 --threads $NCPU -x genome --summary-file hisat2_summary.txt --quiet --dta
 ## OR ##
 
 # paired end
-# hisat2 --threads $NCPU -x genome --summary-file hisat2_summary.txt --quiet --dta -1 reads_1.fq -2 reads_2.fq | samtools sort -@ $NCPU > reads.bam
+hisat2 --threads $NCPU -x genome --summary-file hisat2_summary.txt --quiet --dta -1 reads_1.fq -2 reads_2.fq | samtools sort -@ $NCPU > reads.bam
 
 # GTF merging
-# samtools merge -@ $NCPU merged.bam `ls *bam`
-stringtie -p $NCPU -o stringtie.gtf reads.bam # OR merged.bam # OUTPUT: stringtie.gtf
+samtools merge -@ $NCPU merged.bam `ls *bam`
+stringtie -p $NCPU -o stringtie.gtf merged.bam # OUTPUT: stringtie.gtf
 
 ### 4.1.2 TransDecoder
 #         Input:

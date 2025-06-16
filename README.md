@@ -40,13 +40,19 @@ The pipeline requires the following tools (included in the conda environment):
 
 ## Installation 
 
+### Retrieve the source code
+
+```bash
+git clone https://github.com/minaminii/eukaryotic_genome_pipelines.git
+cd eukaryotic_genome_pipelines
+```
+
 ### Conda Environment Setup
 
 Create and activate the conda environment:
 
 ```bash
-conda env create -f environment.yaml
-conda activate genome_assembly_env
+conda env create -n assemblers -f assemblers_conda_environment.yml
 ```
 
 ## Usage
@@ -54,8 +60,34 @@ conda activate genome_assembly_env
 ### 1. Genome Assembly
 
 ```bash
-bash assembly.sh -l <long_reads.fq> -s <short_reads_R1.fq> <short_reads_R2.fq> -a canu -o output_directory
+conda activate assemblers
+assembly.sh \
+    -u <long_reads.fq> \
+    -1 <short read R1> \
+    -2 <short read R2> \
+    -a canu -o output_directory
 ```
+
+#### Parameters
+
+| Parameters | Definition |
+| --- | --- |
+| `-u <long reads file>`         | Long reads FASTQ (.fastq, .fq, .fq.gz) used for assembly and Racon polishing |
+| `-1 <short read R1>`            | Paired-end short reads R1 used for Pilon polishing |
+| `-2 <short read R2>`            | Paired-end short reads R2 used for Pilon polishing |
+| `-asm <canu or wtdbg2>`              | Assembler: canu or wtdbg2 |
+| `-tech <pacbio or nanopore>`            | Technology:  |
+| `-g <genome size>`             | Estimated Genome size (e.g., 5m, 2.6g) |
+| `-o <output directory>`         | Output directory |
+| `-t <threads>`                  | Number of threads (default: 1) |
+| `--racon-iter <integer>`        | Racon polishing iterations (default: 1) |
+| `--pilon-iter <integer>`        | Pilon polishing iterations (default: 1) |
+| `--wtdbg2-preset <preset(s)>`   | Presets for wtdbg2 (comma-separated) |
+
+> [!NOTE]
+> Refers to [wtdbg2 usage](https://github.com/ruanjue/wtdbg2) for `--wtdbg2-preset` setting. 
+
+### 2. Annotation pipeline
 
 #### Parameters:
 
@@ -71,6 +103,9 @@ The script will:
 3. Perform additional polishing using Pilon with short reads.
 
 ### 2. Genome Annotation
+
+> [!WARNING]
+> This script is under development and does not work at this time.
 
 ```bash
 bash annotation.sh -i assembled_genome.fasta -s species_name -t threads
