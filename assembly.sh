@@ -104,6 +104,12 @@ case $ASSEMBLER in
             -t ${THREADS} -f 2>&1 | tee ${OUTDIR}/01_assembly/wtdbg2.log
         wtpoa-cns -i ${OUTDIR}/01_assembly/assembly.ctg.lay.gz -o ${contigs_fasta} -t ${THREADS} -f
         ;;
+    "skip")
+        if [[ ! -f ${contigs_fasta} ]]; then
+            echo "Cannot skip assembly as ${contigs_fasta} does not exists."
+            exit 1
+        fi
+        ;;
     *)
         echo "Unknown assembler ${asm}. Please use \"canu\" or \"wtdbg2\""
         usage
