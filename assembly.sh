@@ -21,17 +21,17 @@ fi
 
 usage() {
     echo "Usage: $0 [options]"
-    echo "  -u <long reads file>          Long reads FASTQ (gzipped or not)"
-    echo "  -1 <short read R1>            Paired-end short reads R1"
-    echo "  -2 <short read R2>            Paired-end short reads R2"
-    echo "  -asm <assembler>              Assembler: canu or wtdbg2"
-    echo "  -tech <technology>            Technology: pacbio or nanopore"
-    echo "  -g <genome size>              Genome size (e.g., 5m, 2.6g)"
-    echo "  -o <output directory>         Output directory"
-    echo "  -t <threads>                  Number of threads (default: 1)"
-    echo "  --racon-iter <N>              Racon polishing iterations (default: 0)"
-    echo "  --pilon-iter <N>              Pilon polishing iterations (default: 0)"
-    echo "  --wtdbg2-preset <preset(s)>   Presets for wtdbg2 (comma-separated)"
+    echo "  -l <long reads file>                Long reads FASTQ (gzipped or not)"
+    echo "  -1 <short read R1>                  Paired-end short reads R1"
+    echo "  -2 <short read R2>                  Paired-end short reads R2"
+    echo "  -asm <assembler>                    Assembler: canu or wtdbg2"
+    echo "  -tech <technology>                  Technology: pacbio or nanopore"
+    echo "  -g|--genome-size <genome size>      Genome size (e.g., 5m, 2.6g)"
+    echo "  -o|--outdir <output directory>      Output directory"
+    echo "  -t|--threads <threads>              Number of threads (default: 1)"
+    echo "  --racon-iter <N>                    Racon polishing iterations (default: 0)"
+    echo "  --pilon-iter <N>                    Pilon polishing iterations (default: 0)"
+    echo "  --wtdbg2-preset <preset(s)>         Presets for wtdbg2 (comma-separated)"
     # --wtdbg2-preset: Preset for wtdbg2, comma seperable i.e. `ont,preset2` for ont reads and expected genome size <1G`
     #       preset1/rsII/rs: -p 21 -S 4 -s 0.05 -L 5000
     #       preset2: -p 0 -k 15 -AS 2 -s 0.05 -L 5000
@@ -47,7 +47,7 @@ usage() {
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        -u) LONG_READS="$2"; shift ;;
+        -l) LONG_READS="$2"; shift ;;
         -1) READ1="$2"; shift ;;
         -2) READ2="$2"; shift ;;
         -asm) ASSEMBLER="$2"; shift ;;
@@ -67,7 +67,7 @@ done
 HALF_THREADS=$(printf "%.0f" "$(echo "$THREADS * 0.5" | bc -l)")
 
 # Validate required arguments
-if [[ -z "$LONG_READS" || -z "$ASSEMBLER" || -z "$TECH" || -z "$GENOME_SIZE" || -z "$OUTDIR" ]]; then
+if [[ -z "$LONG_READS" || -z "$ASSEMBLER" || -z "$TECH" || -z "$OUTDIR" ]]; then
     echo "Error: Missing required arguments."
     usage
 fi
@@ -76,6 +76,11 @@ mkdir -p ${OUTDIR}/01_assembly
 contigs_fasta="${OUTDIR}/01_assembly/assembly.contigs.fasta"
 case $ASSEMBLER in
     "canu")
+        if [[ -z "$GENOME_SIZE" ]]; then
+            echo "Error: Canu requires an estimated genome size."
+            echo "       -g|--genome-size <genome size>      Genome size (e.g., 5m, 2.6g)"
+            exit 1
+        fi
         canu \
             -p assembly \
             -d ${OUTDIR}/01_assembly \
@@ -96,13 +101,70 @@ case $ASSEMBLER in
             echo "- preset4/corrected/ccs: -p 21 -k 0 -AS 4 -K 0.05 -s 0.5"
             exit 1
         fi
+        if [[ -n "$GENOME_SIZE" ]]; then
+            ADDITIONAL_wtdbg2_PARAMS="-g ${GENOME_SIZE} ${ADDITIONAL_wtdbg2_PARAMS}"
+        fi
         wtdbg2 \
             -x ${WTDGB2_PRESET} \
             -i ${LONG_READS} \
             -o ${OUTDIR}/01_assembly/assembly \
-            -g ${GENOME_SIZE} \
-            -t ${THREADS} -f 2>&1 | tee ${OUTDIR}/01_assembly/wtdbg2.log
+            -t ${THREADS} -f ${ADDITIONAL_wtdbg2_PARAMS} 2>&1 | tee ${OUTDIR}/01_assembly/wtdbg2.log
+        exit_code=$?
+        if [[ "$exit_code" -ne 0 ]]; then
+            echo "ERROR assembly with wtdbg2."
+            exit $exit_code
+        fi 
         wtpoa-cns -i ${OUTDIR}/01_assembly/assembly.ctg.lay.gz -o ${contigs_fasta} -t ${THREADS} -f
+        ;;
+    "spades")
+        if [[ -f $READ1 && -f $READ2 ]]; then
+            if [[ -f $LONG_READS ]]; then
+                echo "Performing hybrid assembly with SPADES"
+                spades.py -o ${OUTDIR}/01_assembly -1 ${READ1} -2 ${READ2} --${TECH} ${LONG_READS}
+                exit_code=$?
+                if [[ "$exit_code" -ne 0 ]]; then
+                    echo "ERROR assembly with spades. (${exit_code})"
+                    exit $exit_code
+                fi 
+            else
+                echo "Performing short-read assembly with SPADES"
+                spades.py -o ${OUTDIR}/01_assembly -1 ${READ1} -2 ${READ2}
+                exit_code=$?
+                if [[ "$exit_code" -ne 0 ]]; then
+                    echo "ERROR assembly with spades. (${exit_code})"
+                    exit $exit_code
+                fi 
+            fi
+            # Rename SPADES' contigs output file name to the one expected by the pipeline.
+            mv ${OUTDIR}/01_assembly/contigs.fasta ${contigs_fasta}
+        else
+            echo "Please check your input files."
+            exit 1
+        fi
+        ;;
+    "flye")
+        case $TECH in
+            "nanopore")
+                FLYE_PARAMS="--nano-raw ${LONG_READS}"
+                ;;
+            "pacbio")
+                FLYE_PARAMS="--pacbio-raw ${LONG_READS}"
+                ;;
+            *)
+                echo "Unknown long read Technology -tech ${TECH}. Please use \"nanopore\" / \"pacbio\""
+                ;;
+        esac
+        if [[ -n "$GENOME_SIZE" ]]; then
+            FLYE_PARAMS="--genome-size ${GENOME_SIZE} ${FLYE_PARAMS}"
+        fi
+        flye --out-dir ${OUTDIR}/01_assembly --threads ${THREADS} ${FLYE_PARAMS}
+        exit_code=$?
+        if [[ "$exit_code" -ne 0 ]]; then
+            echo "ERROR assembly with Flye. (${exit_code})"
+            exit $exit_code
+        fi 
+        # Rename Flye's contigs output file name to the one expected by the pipeline.
+        mv ${OUTDIR}/01_assembly/assembly.fasta ${contigs_fasta}
         ;;
     "skip")
         if [[ ! -f ${contigs_fasta} ]]; then
@@ -111,7 +173,7 @@ case $ASSEMBLER in
         fi
         ;;
     *)
-        echo "Unknown assembler ${asm}. Please use \"canu\" or \"wtdbg2\""
+        echo "Unknown assembler ${asm}. Please use \"flye\" / \"canu\" / \"wtdbg2\" / \"spades\""
         usage
         ;;
 esac
